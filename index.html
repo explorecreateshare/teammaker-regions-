@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Regional Team Maker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Bitter:wght@600;700&display=swap">
+<style>
+/* Layout: a three-step workbench (data, criteria, teams) on a drafting-paper ground; teams render as cards sorted worst-fit first. */
+:root{
+  --bg:#f6f4ef; --panel:#ffffff; --ink:#13203a; --muted:#5a6472; --line:#dcd8cf;
+  --accent:#990000; --accent-ink:#ffffff; --gold:#c9a24f; --soft:#ece9e1;
+  --good:#1d7a53; --warn:#a86a00; --bad:#b3261e; --grid:rgba(19,32,58,.05);
+  --display:"Bitter",Georgia,serif; --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#10151f; --panel:#18202d; --ink:#e8ebf1; --muted:#a3acba; --line:#2c3646;
+  --accent:#e0605a; --accent-ink:#10151f; --gold:#d8b46a; --soft:#202a39;
+  --good:#5cc79a; --warn:#e3a94a; --bad:#f08079; --grid:rgba(232,235,241,.04); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#10151f; --panel:#18202d; --ink:#e8ebf1; --muted:#a3acba; --line:#2c3646;
+  --accent:#e0605a; --accent-ink:#10151f; --gold:#d8b46a; --soft:#202a39;
+  --good:#5cc79a; --warn:#e3a94a; --bad:#f08079; --grid:rgba(232,235,241,.04); color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:24px 24px}
+.wrap{max-width:1180px;margin:0 auto;padding-block:28px 60px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header.top{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between;margin-bottom:22px}
+h1{font-family:var(--display);font-size:clamp(28px,4vw,40px);line-height:1.05;margin:0;text-wrap:balance}
+.kicker{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin:0 0 6px}
+.lede{max-width:62ch;color:var(--muted);margin:8px 0 0}
+.privacy{font-size:13px;color:var(--muted);border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:10px 14px;max-width:340px}
+.privacy b{color:var(--ink)}
+.steps{display:grid;gap:18px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 22px;min-width:0}
+.panel h2{font-family:var(--display);font-size:21px;margin:0 0 4px;display:flex;gap:10px;align-items:baseline}
+.panel h2 .n{font-family:var(--mono);font-size:12px;color:var(--accent);font-weight:500}
+.panel .sub{color:var(--muted);margin:0 0 14px;font-size:14px;max-width:75ch}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+button,.btn{font:inherit;font-size:14px;font-weight:500;border-radius:999px;padding:8px 16px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+button:hover{filter:brightness(.97)} button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+button:disabled{opacity:.5;cursor:default}
+textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:12.5px;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--bg);color:var(--ink);resize:vertical}
+select,input[type=number]{font:inherit;font-size:14px;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--panel);color:var(--ink)}
+input[type=number]{width:72px}
+.file{position:relative;overflow:hidden}
+.file input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.tag{display:inline-block;font-family:var(--mono);font-size:11px;padding:2px 8px;border-radius:999px;background:var(--soft);color:var(--muted)}
+.tag.sample{background:var(--gold);color:#13203a}
+.status{font-size:13px;color:var(--muted)}
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-weight:600;background:var(--soft)}
+td.mono,th.mono{font-family:var(--mono);font-size:12px}
+.crit td{vertical-align:middle}
+.help{font-size:12.5px;color:var(--muted)}
+.vals{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.vals label{font-size:12.5px;border:1px solid var(--line);border-radius:999px;padding:2px 9px;display:inline-flex;gap:5px;align-items:center;cursor:pointer}
+.settings{display:flex;flex-wrap:wrap;gap:14px 26px;margin:14px 0 4px}
+.settings label{display:flex;gap:8px;align-items:center;font-size:14px}
+.summary{display:flex;flex-wrap:wrap;gap:10px;margin:4px 0 16px}
+.stat{border:1px solid var(--line);border-radius:10px;padding:8px 14px;min-width:120px}
+.stat .v{font-family:var(--mono);font-size:20px;font-variant-numeric:tabular-nums}
+.stat .l{font-size:12px;color:var(--muted)}
+.teams{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.team{border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--panel);min-width:0;display:flex;flex-direction:column;gap:8px}
+.team.low{border-color:var(--warn)} .team.flag{border-color:var(--bad)}
+.team h3{margin:0;font-family:var(--display);font-size:17px;display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.fit{font-family:var(--mono);font-size:12px;font-variant-numeric:tabular-nums}
+.bar{height:6px;border-radius:999px;background:var(--soft);overflow:hidden}
+.bar span{display:block;height:100%;background:var(--good)}
+.team.low .bar span{background:var(--warn)} .team.flag .bar span{background:var(--bad)}
+.members{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.members li{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:14px}
+.members select{font-size:12px;padding:2px 4px}
+.chips{display:flex;flex-wrap:wrap;gap:5px}
+.chip{font-family:var(--mono);font-size:11px;border-radius:999px;padding:2px 8px;border:1px solid var(--line);color:var(--muted)}
+.chip.ok{color:var(--good);border-color:var(--good)} .chip.w{color:var(--warn);border-color:var(--warn)} .chip.b{color:var(--bad);border-color:var(--bad)}
+details.guide{margin-top:12px;border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:var(--bg)}
+details.guide summary{cursor:pointer;font-weight:600}
+details.guide ol,details.guide ul{margin:8px 0;padding-left:20px}
+.sched{margin-top:16px;border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:var(--bg)}
+.sched h3{margin:0 0 4px;font-family:var(--display);font-size:17px}
+.sched .settings{margin:10px 0}
+.slots{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.slots label{font-size:12.5px;border:1px solid var(--line);border-radius:999px;padding:3px 10px;display:inline-flex;gap:6px;align-items:center;cursor:pointer;background:var(--panel)}
+.slots label.off{opacity:.55;text-decoration:line-through}
+.slots .ct{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.shared{font-size:12.5px;color:var(--muted)}
+.foot{margin-top:24px;font-size:12px;color:var(--muted);max-width:90ch}
+.empty{color:var(--muted);font-size:14px;padding:12px 0}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style></head><body>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <p class="kicker">Teaching in Luddy · Teams</p>
+      <h1>Regional Team Maker</h1>
+      <p class="lede">Form project teams around a shared geographic region of interest, with a balanced mix of skills: data analysis, slide design, library research, and public speaking. Each team should share a region and have at least one confident student for each part of the project.</p>
+    </div>
+    <div class="privacy"><b>Codes only.</b> Upload student codes and survey answers, never names, usernames, or ID numbers. The tool runs in your browser and saves nothing. Keep the key workbook in IU-approved storage, as with any student record.</div>
+  </header>
+
+  <div class="steps">
+    <section class="panel" aria-labelledby="s1">
+      <h2 id="s1"><span class="n">Step 1</span> Load survey responses</h2>
+      <p class="sub">Export your survey (Qualtrics, Google Forms, or a Canvas survey) as a CSV with one row per student, then upload it or paste it below. A sample class is loaded so you can see how the tool works.</p>
+      <div class="guide" style="border-left:4px solid #990000;padding:10px 14px;margin:0 0 12px;background:#fbf3f3;border-radius:8px"><p style="margin:0 0 6px"><b>No student names or IDs.</b> Do not upload names, IU usernames, email addresses, or student ID numbers. Replace them with a student code (S001, S002, ...) first, using the Team Maker Key workbook from the Team Project Field Guide in Module 06. The tool refuses files that look like they contain names or IDs.</p><p class="help" style="margin:0">The key that links codes to students stays in the workbook on your own computer or IU-approved storage. This tool only ever sees codes and survey answers.</p></div>
+      <div class="row">
+        <span class="btn file"><input id="fileIn" type="file" accept=".csv,text/csv" aria-label="Upload CSV">Upload CSV</span>
+        <button id="loadSample" type="button">Reload sample class</button>
+        <button id="usePaste" type="button">Use pasted text</button>
+        <span id="dataStatus" class="status"></span>
+      </div>
+      <textarea id="pasteIn" placeholder="Or paste CSV here, including the header row" aria-label="Paste CSV" style="margin-top:12px"></textarea>
+      <details class="guide">
+        <summary>What to ask on the survey</summary>
+        <ul>
+          <li><b>Top two regions</b>: "Select your top TWO geographical regions of interest" with First Choice and Second Choice (Africa, Asia, Australia, Europe, North America, South America). Most tools export these as two columns; set both to <i>Shared region (1st/2nd choice)</i>.</li>
+          <li><b>Four 1 to 5 ratings</b>: data analysis confidence, slide deck ability, library research skills, and public speaking confidence (7 slides in 7 minutes). Each is set to <i>Balance a 1 to 5 skill</i>, which also rewards teams with at least one student rating 4 or 5.</li>
+          <li><b>IU username</b>, so you can swap it for a student code in the Team Maker Key workbook before uploading. Never upload the username itself.</li>
+          <li><b>Availability</b>: "Which times could you meet outside class?" as a checkbox list (for example Mon AM; Mon PM; Tue AM ...). Most survey tools export these separated by semicolons or commas, which this tool reads.</li>
+          <li><b>Experience</b> with a skill the project needs, on a 1 to 5 scale (for example, "How comfortable are you writing Python?").</li>
+          <li><b>Role preference</b>: "On a team, what do you most like to do?" (for example: coding, design, testing, writing, coordinating).</li>
+          <li><b>Identity (optional, self-described)</b>: if you use gender or another identity question, use it only to avoid isolating a student, tell students why you ask, and offer "prefer not to say."</li>
+        </ul>
+        <p class="help">Leave out GPA and anything you would not use. Every extra criterion weakens the others.</p>
+      </details>
+    </section>
+
+    <section class="panel" aria-labelledby="s2">
+      <h2 id="s2"><span class="n">Step 2</span> Choose criteria</h2>
+      <p class="sub">For each survey column, choose how it should shape teams and how much it matters (1 is light, 5 is strong). Columns set to Ignore are not used.</p>
+      <div class="scroll"><table class="crit" id="critTable"><thead><tr><th>Survey column</th><th>Example answers</th><th>How to use it</th><th>Weight</th></tr></thead><tbody></tbody></table></div>
+      <div class="sched" id="schedPanel" hidden>
+        <h3>Availability</h3>
+        <p class="help" style="margin:0">Times are read from every column set to an availability option. Answers can be separated by semicolons, commas, slashes, vertical bars, or line breaks. Day names are matched whether students wrote "Monday" or "Mon," and capitalization and extra spaces are ignored. With more than one availability column (for example, one column per day), each answer is labeled with its column.</p>
+        <div class="settings">
+          <label for="minOverlap">Shared times needed <input id="minOverlap" type="number" min="1" max="20" value="2"></label>
+          <label for="schedRule">Treat as <select id="schedRule"><option value="required">Required: flag teams below this</option><option value="preferred">Preferred: lower the score only</option></select></label>
+          <label for="schedBlank">Blank answers <select id="schedBlank"><option value="flexible">Treat as available any time</option><option value="flag">Flag the team</option></select></label>
+          <label for="schedWeight">Weight <select id="schedWeight"><option>1</option><option>2</option><option>3</option><option>4</option><option selected>5</option></select></label>
+        </div>
+        <p class="help" style="margin:0">Time slots found, with how many students chose each. Uncheck any that should not count as a meeting time (for example "None" or a slot during class).</p>
+        <div class="slots" id="slotList"></div>
+      </div>
+      <div class="settings">
+        <label for="teamSize">Team size <input id="teamSize" type="number" min="2" max="8" value="4"></label>
+      </div>
+      <p class="help">Teams that cannot divide evenly get one more or one fewer member. Oakley and colleagues recommend teams of three or four.</p>
+      <div class="row" style="margin-top:12px"><button id="makeTeams" class="primary" type="button">Form teams</button><span id="runStatus" class="status"></span></div>
+    </section>
+
+    <section class="panel" aria-labelledby="s3">
+      <h2 id="s3"><span class="n">Step 3</span> Review, adjust, and export</h2>
+      <p class="sub">Teams are listed from weakest fit to strongest, so the ones that need a look come first. Move a student with the menu beside their name; scores update as you go. Run Form teams again for a different arrangement.</p>
+      <div class="summary" id="summary"></div>
+      <div class="teams" id="teams"><p class="empty">Teams appear here after you select Form teams.</p></div>
+      <div style="margin-top:18px">
+        <div class="row"><button id="copyCanvas" type="button">Copy team list (codes)</button><button id="copyRoster" type="button">Copy team roster</button><button id="dlCanvas" type="button">Download team list CSV</button><span id="exportStatus" class="status"></span></div>
+        <textarea id="exportOut" readonly aria-label="Export text" style="margin-top:10px"></textarea>
+        <p class="help">The team list has two columns, student_code and group_name, and no names. To import it into Canvas groups, paste it into tab 3 of the Team Maker Key workbook, which matches each code to an IU username on your own computer and builds the Canvas file (login_id, group_name). Then in Canvas, open People, then Groups, create a group set, and choose Import. Download may be unavailable inside some viewers; copy and save the text as a .csv file instead.</p>
+      </div>
+    </section>
+  </div>
+
+  <p class="foot">Approach adapted from criterion-based team formation research (Layton, Loughry, Ohland, and Ricco, 2010), which scores each team against instructor criteria and improves the worst-fitting team first, and from Oakley, Felder, Brent, and Elhajj (2004). Built for Luddy faculty development. Regional edition: teams share a region of interest and balance four project skills.</p>
+</div>
+
+<script>
+(function(){
+"use strict";
+const $=s=>document.querySelector(s);
+const MODES=[["ignore","Ignore"],["code","Student code"],["schedule","Availability: list of times"],["slot","Availability: one time slot (yes/no)"],
+ ["region","Shared region (1st/2nd choice)"],["similar","Group similar answers"],["mix","Mix different answers"],["balance","Balance a 1 to 5 skill"],["isolate","Avoid isolating a group"]];
+
+let rows=[],cols=[],cfg=[],teams=[],students=[];
+
+function parseCSV(text){
+  const out=[];let row=[],f="",q=false;
+  for(let i=0;i<text.length;i++){const c=text[i];
+    if(q){if(c==='"'){if(text[i+1]==='"'){f+='"';i++}else q=false}else f+=c}
+    else if(c==='"')q=true; else if(c===','){row.push(f);f=""} else if(c==='\n'||c==='\r'){if(c==='\r'&&text[i+1]==='\n')i++;row.push(f);f="";if(row.some(x=>x.trim()!==""))out.push(row);row=[]} else f+=c}
+  row.push(f);if(row.some(x=>x.trim()!==""))out.push(row);return out}
+function splitMulti(v){return String(v||"").split(/[;,|]/).map(s=>s.trim()).filter(Boolean)}
+function splitSlots(v){return String(v||"").split(/[;,|\/\n]+/).map(s=>s.trim()).filter(Boolean)}
+const DAYS=[["monday","mon"],["tuesday","tue"],["tues","tue"],["wednesday","wed"],["thursday","thu"],["thurs","thu"],["friday","fri"],["saturday","sat"],["sunday","sun"]];
+function normSlot(x){let k=String(x).toLowerCase().replace(/\s+/g," ").trim();DAYS.forEach(([a,b])=>{k=k.replace(new RegExp("\\b"+a+"\\b","g"),b)});return k}
+const YES=/^(y|yes|true|1|x|available|✓)$/i;
+let sched={off:new Set(),label:{}};
+
+function sample(){
+  const regions=["Africa","Asia","Australia","Europe","North America","South America"];
+  let s=12345;const r=()=>(s=(s*1103515245+12345)%2147483648)/2147483648;const pick=a=>a[Math.floor(r()*a.length)];
+  const lines=[["Student code","Region - First Choice","Region - Second Choice","Data analysis confidence (1-5)","Slide deck ability (1-5)","Research skills (1-5)","Public speaking confidence (1-5)"]];
+  for(let i=0;i<30;i++){const a=pick(regions);let b=pick(regions);while(b===a)b=pick(regions);
+    lines.push(["S"+String(i+1).padStart(3,"0"),a,b,...[0,0,0,0].map(()=>String(1+Math.floor(r()*5)))])}
+  return lines}
+
+function guessMode(h,vals){const k=h.toLowerCase();
+  if(/code|pseudonym|anon/.test(k))return"code"; 
+  const nonblank=vals.filter(v=>v.trim()!=="");
+  if(nonblank.length&&nonblank.every(v=>YES.test(v.trim())||/^(n|no|false|0)$/i.test(v.trim()))&&/(mon|tue|wed|thu|fri|sat|sun|am|pm|\d)/i.test(k))return"slot";
+  if(/avail|schedule|times?/.test(k))return"schedule";
+  if(/region|geograph|continent/.test(k))return"region";
+  if(/gender|identity|race|ethnic/.test(k))return"isolate";
+  if(vals.length&&vals.every(v=>v===""||/^[1-5]$/.test(v.trim())))return"balance"; if(/role|prefer/.test(k))return"mix"; return"ignore"}
+function defaultWeight(m){return {schedule:5,slot:5,region:5,balance:3,mix:2,similar:2,isolate:5}[m]||0}
+
+const PII_HEAD=/(name|user|login|e-?mail|netid|sis|student ?id|university ?id|\bid\b|uid|phone)/i;
+const PII_VAL=[/@[a-z0-9-]+\./i,/^\d{9,10}$/];
+function piiCheck(data){const hs=data[0].map(h=>h.trim());const bad=[];
+  hs.forEach((h,i)=>{if(/code|pseudonym|anon/i.test(h))return;
+    if(PII_HEAD.test(h)){bad.push(h);return}
+    if(data.slice(1).some(r=>PII_VAL.some(re=>re.test(String(r[i]||"").trim()))))bad.push(h||"(column "+(i+1)+")")});
+  return bad}
+function load(data,label,isSample){
+  if(data.length){const keep=data[0].map((h,i)=>h.trim()!==""||data.slice(1).some(r=>String(r[i]||"").trim()!==""));data=data.map(r=>r.filter((_,i)=>keep[i]))}
+  if(data.length<3){$("#dataStatus").textContent="That file needs a header row and at least two students.";return}
+  const bad=isSample?[]:piiCheck(data);
+  if(bad.length){$("#pasteIn").value="";$("#fileIn").value="";rows=[];cols=[];cfg=[];teams=[];students=[];
+    $("#critTable tbody").innerHTML="";renderTeams();
+    $("#dataStatus").innerHTML='<b style="color:#990000">Not loaded.</b> This file seems to contain names, usernames, emails, or ID numbers in: '+bad.map(esc).join(", ")+'. Replace them with student codes using the Team Maker Key workbook, remove those columns, and try again. Nothing was kept.';return}
+  sched={off:new Set(),label:{}};cols=data[0].map(h=>h.trim());rows=data.slice(1).map(r=>cols.map((_,i)=>(r[i]||"").trim()));
+  cfg=cols.map((h,i)=>{const vals=rows.map(r=>r[i]);const m=guessMode(h,vals);const distinct=[...new Set(vals.filter(Boolean))];
+    return {mode:m,weight:defaultWeight(m),protect:m==="isolate"?distinct.filter(v=>!/^(man|male|prefer not)/i.test(v)):[]}});
+  $("#dataStatus").innerHTML=`${rows.length} students, ${cols.length} columns loaded ${isSample?'<span class="tag sample">Sample data</span>':'<span class="tag">'+label+'</span>'}`;
+  renderCriteria();teams=[];renderTeams()}
+
+function renderCriteria(){
+  const tb=$("#critTable tbody");tb.innerHTML="";
+  cols.forEach((h,i)=>{const c=cfg[i];const vals=rows.map(r=>r[i]).filter(Boolean);const distinct=[...new Set(c.mode==="schedule"?vals.flatMap(splitSlots):vals)];
+    const tr=document.createElement("tr");
+    const ex=distinct.slice(0,4).join(", ")+(distinct.length>4?", ...":"");
+    const opts=MODES.map(([v,l])=>`<option value="${v}"${v===c.mode?" selected":""}>${l}</option>`).join("");
+    const weighted=!["ignore","code","section","schedule","slot"].includes(c.mode);
+    let extra="";
+    if(c.mode==="isolate"){extra=`<div class="help">Never place exactly one student from the checked answers (counted together) on a team:</div><div class="vals">`+distinct.map(v=>`<label><input type="checkbox" data-prot="${i}" value="${esc(v)}"${c.protect.includes(v)?" checked":""}>${esc(v)}</label>`).join("")+`</div>`}
+    tr.innerHTML=`<td><b>${esc(h)}</b></td><td class="help">${esc(ex)||"(blank)"}</td><td><select data-mode="${i}" aria-label="How to use ${esc(h)}">${opts}</select>${extra}</td>
+      <td>${weighted?`<select data-w="${i}" aria-label="Weight for ${esc(h)}">${[1,2,3,4,5].map(w=>`<option${w===(c.weight||3)?" selected":""}>${w}</option>`).join("")}</select>`:(c.mode==="schedule"||c.mode==="slot"?'<span class="help">set below</span>':'<span class="help">n/a</span>')}</td>`;
+    tb.appendChild(tr)});
+  renderSched();
+  tb.querySelectorAll("[data-mode]").forEach(s=>s.onchange=e=>{const i=+e.target.dataset.mode;cfg[i].mode=e.target.value;cfg[i].weight=defaultWeight(e.target.value)||3;
+    if(e.target.value==="isolate"&&!cfg[i].protect.length){cfg[i].protect=[]}renderCriteria()});
+  tb.querySelectorAll("[data-w]").forEach(s=>s.onchange=e=>{cfg[+e.target.dataset.w].weight=+e.target.value});
+  tb.querySelectorAll("[data-prot]").forEach(cb=>cb.onchange=e=>{const i=+e.target.dataset.prot;const v=e.target.value;const p=cfg[i].protect;
+    if(e.target.checked){if(!p.includes(v))p.push(v)}else cfg[i].protect=p.filter(x=>x!==v)});
+}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+
+function colOf(m){return cfg.map((c,i)=>c.mode===m?i:-1).filter(i=>i>=0)}
+function rawSlots(r){const sc=colOf("schedule"),sl=colOf("slot");const out=[];const multi=sc.length>1;
+  sc.forEach(i=>splitSlots(r[i]).forEach(v=>{const lab=multi?short2(cols[i])+": "+v:v;out.push([normSlot(lab),lab])}));
+  sl.forEach(i=>{if(YES.test(String(r[i]).trim()))out.push([normSlot(cols[i]),cols[i]])});return out}
+function short2(h){return h.replace(/\(.*?\)/g,"").replace(/availability|available|times?|[:?]/gi,"").trim()||h}
+function hasSched(){return colOf("schedule").length+colOf("slot").length>0}
+function renderSched(){const pan=$("#schedPanel");pan.hidden=!hasSched();if(pan.hidden)return;
+  const counts={};sched.label={};rows.forEach(r=>{new Set(rawSlots(r).map(([k,l])=>{sched.label[k]=sched.label[k]||l;return k})).forEach(k=>counts[k]=(counts[k]||0)+1)});
+  Object.keys(counts).forEach(k=>{if(/^(none|n\/a|na|not available|no times?)$/.test(k)&&!sched.seen?.has(k))sched.off.add(k)});
+  sched.seen=new Set(Object.keys(counts));
+  const blanks=rows.filter(r=>!rawSlots(r).length).length;
+  const keys=Object.keys(counts).sort((a,b)=>counts[b]-counts[a]||a.localeCompare(b));
+  $("#slotList").innerHTML=(keys.length?keys.map(k=>`<label class="${sched.off.has(k)?"off":""}"><input type="checkbox" data-slot="${esc(k)}"${sched.off.has(k)?"":" checked"}>${esc(sched.label[k])} <span class="ct">${counts[k]}</span></label>`).join(""):'<span class="help">No times found yet. Check the column settings above.</span>')
+    +(blanks?`<span class="help" style="align-self:center">${blanks} student${blanks===1?"":"s"} left availability blank.</span>`:"");
+  $("#slotList").querySelectorAll("[data-slot]").forEach(cb=>cb.onchange=e=>{const k=e.target.dataset.slot;if(e.target.checked)sched.off.delete(k);else sched.off.add(k);renderSched();if(teams.length){buildSlots();renderTeams()}})}
+function buildSlots(){students.forEach(s=>{s.slots=new Set(rawSlots(s.r).map(([k])=>k).filter(k=>!sched.off.has(k)))})}
+function buildStudents(){
+  const codeC=colOf("code")[0],secC=colOf("section")[0];
+  students=rows.map((r,idx)=>({id:idx,name:codeC!=null&&r[codeC]?r[codeC]:"Row "+(idx+1),section:secC!=null?r[secC]||"(none)":"All",r}));
+  buildSlots();
+  // stats for balance columns
+  colOf("balance").forEach(i=>{const v=rows.map(r=>parseFloat(r[i])).filter(x=>!isNaN(x));cfg[i].mean=v.reduce((a,b)=>a+b,0)/(v.length||1);cfg[i].range=Math.max(1,Math.max(...v)-Math.min(...v))});
+}
+
+// score a team: returns {score, parts:[{i,label,val,flag}]}
+function teamScore(members){
+  let tot=0,wsum=0,parts=[],flag=false;const need=Math.max(1,+$("#minOverlap").value||1);
+  let shared=null;
+  if(hasSched()){const w=+$("#schedWeight").value||5;const rule=$("#schedRule").value,blankRule=$("#schedBlank").value;
+    const withT=members.filter(m=>m.slots&&m.slots.size),blank=members.length-withT.length;
+    let common=withT.length?[...withT[0].slots].filter(k=>withT.every(m=>m.slots.has(k))):[];
+    let v=withT.length>1?Math.min(1,common.length/need):1;
+    const short_=withT.length>1&&common.length<need;
+    if(short_&&rule==="required"){flag=true;v=common.length?v*.5:0}
+    parts.push({label:`${common.length} shared time${common.length===1?"":"s"}`,cls:common.length===0&&withT.length>1?"b":short_?"w":"ok"});
+    if(blank){parts.push({label:`${blank} blank availability`,cls:blankRule==="flag"?"b":"w"});if(blankRule==="flag"){flag=true;v*=.5}}
+    shared=common.map(k=>sched.label[k]||k);tot+=v*w;wsum+=w}
+  const rc=colOf("region");if(rc.length){const w=Math.max(...rc.map(i=>cfg[i].weight||5));const pts={};
+    members.forEach(m=>rc.forEach((i,j)=>{const v=m.r[i];if(v)pts[v]=Math.max(pts[v]||0,0)+(j===0?1:.6)}));
+    let bestR="",bestN=0,bestP=0;Object.keys(pts).forEach(k=>{const n=members.filter(m=>rc.some(i=>m.r[i]===k)).length;if(n>bestN||(n===bestN&&pts[k]>bestP)){bestR=k;bestN=n;bestP=pts[k]}});
+    const v=members.length?(bestN/members.length)*(.7+.3*Math.min(1,bestP/Math.max(1,bestN))):1;
+    parts.push({label:bestR?`${bestN}/${members.length} share ${bestR}`:"no region",cls:bestN===members.length?"ok":bestN>=members.length-1?"w":"b"});
+    tot+=v*w;wsum+=w}
+  cfg.forEach((c,i)=>{if(!["similar","mix","balance","isolate"].includes(c.mode)||!c.weight)return;
+    const vals=members.map(s=>s.r[i]);let v=1,label="";
+    if(c.mode==="similar"){const f=freq(vals.filter(Boolean));const top=Math.max(0,...Object.values(f));v=vals.length?top/vals.length:1;parts.push({i,label:`${Math.round(v*100)}% same ${short(cols[i])}`,cls:v>=.75?"ok":"w"})}
+    else if(c.mode==="mix"){const d=new Set(vals.filter(Boolean));const avail=new Set(rows.map(r=>r[i]).filter(Boolean)).size;v=Math.min(1,d.size/Math.max(1,Math.min(members.length,avail)));parts.push({i,label:`${d.size} ${short(cols[i])} types`,cls:v>=.75?"ok":"w"})}
+    else if(c.mode==="balance"){const nums=vals.map(parseFloat).filter(x=>!isNaN(x));const m=nums.reduce((a,b)=>a+b,0)/(nums.length||1);const mx=Math.max(0,...nums);v=nums.length?.5*Math.max(0,1-Math.abs(m-c.mean)/(c.range/2))+.5*Math.min(1,mx/4):1;parts.push({i,label:`${short(cols[i])} avg ${m.toFixed(1)}, top ${mx}`,cls:v>=.75?"ok":mx<4?"b":"w"})}
+    else if(c.mode==="isolate"){const n=vals.filter(x=>c.protect.includes(x)).length;const iso=n===1;v=iso?0:1;if(iso){flag=true;parts.push({i,label:"one student isolated",cls:"b"})}}
+    tot+=v*c.weight;wsum+=c.weight});
+  return {score:wsum?tot/wsum:1,parts,flag,shared}}
+function freq(a){const f={};a.forEach(x=>f[x]=(f[x]||0)+1);return f}
+function short(h){return h.replace(/\(.*?\)/g,"").trim().split(/\s+/).slice(0,2).join(" ").toLowerCase()}
+
+function sizes(n,k){let t=Math.max(1,Math.round(n/k));if(n/t>k+1)t++;const base=Math.floor(n/t),extra=n%t;return Array.from({length:t},(_,i)=>base+(i<extra?1:0))}
+function objective(ts){const sc=ts.map(t=>teamScore(t).score);sc.sort((a,b)=>a-b);return sc}
+function better(a,b){for(let i=0;i<a.length;i++){if(a[i]>b[i]+1e-9)return true;if(a[i]<b[i]-1e-9)return false}return false}
+
+function formGroup(list,k,restarts,iters){
+  let best=null,bestObj=null;
+  for(let r=0;r<restarts;r++){
+    const sh=list.slice().sort(()=>Math.random()-.5);const sz=sizes(sh.length,k);let p=0;const ts=sz.map(n=>sh.slice(p,p+=n));
+    let sc=ts.map(t=>teamScore(t).score);
+    for(let it=0;it<iters;it++){
+      // focus on the worst team half the time
+      let a=Math.random()<.5?sc.indexOf(Math.min(...sc)):Math.floor(Math.random()*ts.length);let b=Math.floor(Math.random()*ts.length);if(a===b||ts.length<2)continue;
+      const ia=Math.floor(Math.random()*ts[a].length),ib=Math.floor(Math.random()*ts[b].length);
+      const na=ts[a].slice(),nb=ts[b].slice();[na[ia],nb[ib]]=[nb[ib],na[ia]];
+      const sa=teamScore(na).score,sb=teamScore(nb).score;
+      const oldMin=Math.min(sc[a],sc[b]),newMin=Math.min(sa,sb);
+      if(newMin>oldMin+1e-9||(Math.abs(newMin-oldMin)<1e-9&&sa+sb>sc[a]+sc[b]+1e-9)){ts[a]=na;ts[b]=nb;sc[a]=sa;sc[b]=sb}
+    }
+    const o=objective(ts);if(!best||better(o,bestObj)){best=ts;bestObj=o}
+  }
+  return best}
+
+function makeTeams(){
+  if(!rows.length)return;buildStudents();const k=Math.max(2,+$("#teamSize").value||4);
+  const groups={};students.forEach(s=>{const g="All";(groups[g]=groups[g]||[]).push(s)});
+  $("#runStatus").textContent="Forming teams...";
+  setTimeout(()=>{teams=[];let n=0;
+    Object.keys(groups).sort().forEach(g=>{const t=formGroup(groups[g],k,6,Math.min(30000,groups[g].length*700));t.forEach(m=>teams.push({name:"Team "+(++n),section:g,members:m}))});
+    $("#runStatus").textContent=`Formed ${teams.length} teams.`;renderTeams()},20)}
+
+function renderTeams(){
+  const box=$("#teams"),sum=$("#summary");
+  if(!teams.length){box.innerHTML='<p class="empty">Teams appear here after you select Form teams.</p>';sum.innerHTML="";$("#exportOut").value="";return}
+  const scored=teams.map((t,idx)=>({t,idx,s:teamScore(t.members)})).sort((a,b)=>a.s.score-b.s.score);
+  const flagged=scored.filter(x=>x.s.flag).length;const avg=scored.reduce((a,x)=>a+x.s.score,0)/scored.length;
+  sum.innerHTML=`<div class="stat"><div class="v">${teams.length}</div><div class="l">teams</div></div><div class="stat"><div class="v">${Math.round(avg*100)}</div><div class="l">average fit (0 to 100)</div></div><div class="stat"><div class="v">${Math.round(scored[0].s.score*100)}</div><div class="l">weakest team fit</div></div><div class="stat"><div class="v" style="color:var(${flagged?"--bad":"--good"})">${flagged}</div><div class="l">teams with a problem to fix</div></div>`;
+  const opts=teams.map((t,i)=>`<option value="${i}">${t.name}</option>`).join("");
+  box.innerHTML=scored.map(({t,idx,s})=>{const pct=Math.round(s.score*100);const cls=s.flag?"flag":pct<70?"low":"";
+    return `<article class="team ${cls}"><h3><span>${esc(t.name)}</span><span class="fit">fit ${pct}</span></h3>
+      <div class="bar"><span style="width:${pct}%"></span></div>
+      <ul class="members">${t.members.map(m=>`<li><span>${esc(m.name)}</span><select data-move="${idx}:${m.id}" aria-label="Move ${esc(m.name)}">${opts.replace(`value="${idx}"`,`value="${idx}" selected`)}</select></li>`).join("")}</ul>
+      <div class="chips">${s.parts.map(p=>`<span class="chip ${p.cls}">${esc(p.label)}</span>`).join("")}</div>${s.shared&&s.shared.length?`<div class="shared">Can meet: ${esc(s.shared.slice(0,6).join(", "))}${s.shared.length>6?", ...":""}</div>`:""}</article>`}).join("");
+  box.querySelectorAll("[data-move]").forEach(sel=>sel.onchange=e=>{const [from,id]=e.target.dataset.move.split(":").map(Number);const to=+e.target.value;if(from===to)return;
+    const i=teams[from].members.findIndex(m=>m.id===id);const [m]=teams[from].members.splice(i,1);teams[to].members.push(m);teams=teams.filter(t=>t.members.length);renderTeams()});
+  $("#exportOut").value=canvasCSV()}
+function q(v){v=String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
+function canvasCSV(){return ["student_code,group_name"].concat(teams.flatMap(t=>t.members.map(m=>[m.name,t.name].map(q).join(",")))).join("\n")}
+function rosterText(){return teams.map(t=>`${t.name}: ${t.members.map(m=>m.name).join(", ")}`).join("\n")}
+async function copy(text,label){$("#exportOut").value=text;try{await navigator.clipboard.writeText(text);$("#exportStatus").textContent=label+" copied."}catch(e){const ta=$("#exportOut");ta.focus();ta.select();$("#exportStatus").textContent="Select all in the box below and copy."}}
+
+$("#copyCanvas").onclick=()=>teams.length&&copy(canvasCSV(),"Team list");
+$("#copyRoster").onclick=()=>teams.length&&copy(rosterText(),"Roster");
+$("#dlCanvas").onclick=()=>{if(!teams.length)return;try{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([canvasCSV()],{type:"text/csv"}));a.download="team-list-codes.csv";document.body.appendChild(a);a.click();a.remove();$("#exportStatus").textContent="If nothing downloaded, use Copy instead."}catch(e){$("#exportStatus").textContent="Download is blocked here. Use Copy instead."}};
+$("#makeTeams").onclick=makeTeams;
+["#minOverlap","#schedRule","#schedBlank","#schedWeight"].forEach(id=>$(id).onchange=()=>{if(teams.length)renderTeams()});
+$("#loadSample").onclick=()=>{load(sample(),"",true);makeTeams()};
+$("#usePaste").onclick=()=>{const t=$("#pasteIn").value;if(!t.trim()){$("#dataStatus").textContent="Paste CSV text first.";return}load(parseCSV(t),"Pasted data",false)};
+$("#fileIn").onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>load(parseCSV(String(rd.result).replace(/^﻿/,"")),f.name,false);rd.readAsText(f)};
+load(sample(),"",true);makeTeams();
+})();
+</script>
+</body></html>
