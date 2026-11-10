@@ -147,6 +147,7 @@ details.guide ol,details.guide ul{margin:8px 0;padding-left:20px}
       </div>
       <div class="settings">
         <label for="teamSize">Team size <input id="teamSize" type="number" min="2" max="8" value="4"></label>
+        <label for="maxPerRegion" style="margin-left:16px">Teams per region <input id="maxPerRegion" type="number" min="1" max="20" value="2" title="Each region gets exactly this many teams. Leave blank to ignore regions when sizing teams."></label>
       </div>
       <p class="help">Teams that cannot divide evenly get one more or one fewer member. Oakley and colleagues recommend teams of three or four.</p>
       <div class="row" style="margin-top:12px"><button id="makeTeams" class="primary" type="button">Form teams</button><span id="runStatus" class="status"></span></div>
@@ -303,14 +304,14 @@ function teamScore(members){
 function freq(a){const f={};a.forEach(x=>f[x]=(f[x]||0)+1);return f}
 function short(h){return h.replace(/\(.*?\)/g,"").trim().split(/\s+/).slice(0,2).join(" ").toLowerCase()}
 
-function sizes(n,k){let t=Math.max(1,Math.round(n/k));if(n/t>k+1)t++;const base=Math.floor(n/t),extra=n%t;return Array.from({length:t},(_,i)=>base+(i<extra?1:0))}
+function sizes(n,k,tf){let t=tf||Math.max(1,Math.round(n/k));if(!tf&&n/t>k+1)t++;const base=Math.floor(n/t),extra=n%t;return Array.from({length:t},(_,i)=>base+(i<extra?1:0))}
 function objective(ts){const sc=ts.map(t=>teamScore(t).score);sc.sort((a,b)=>a-b);return sc}
 function better(a,b){for(let i=0;i<a.length;i++){if(a[i]>b[i]+1e-9)return true;if(a[i]<b[i]-1e-9)return false}return false}
 
-function formGroup(list,k,restarts,iters){
+function formGroup(list,k,restarts,iters,tf){
   let best=null,bestObj=null;
   for(let r=0;r<restarts;r++){
-    const sh=list.slice().sort(()=>Math.random()-.5);const sz=sizes(sh.length,k);let p=0;const ts=sz.map(n=>sh.slice(p,p+=n));
+    const sh=list.slice().sort(()=>Math.random()-.5);const sz=sizes(sh.length,k,tf);let p=0;const ts=sz.map(n=>sh.slice(p,p+=n));
     let sc=ts.map(t=>teamScore(t).score);
     for(let it=0;it<iters;it++){
       // focus on the worst team half the time
@@ -325,13 +326,47 @@ function formGroup(list,k,restarts,iters){
   }
   return best}
 
+// Assign students to regions so no region gets more than `lim` teams.
+function regionPlan(k,lim){
+  const rc=colOf("region");if(!rc.length||!lim)return null;
+  const n=students.length;
+  const pref=s=>rc.map(i=>s.r[i]).filter(Boolean);
+  const regs=[...new Set(students.flatMap(pref))];if(!regs.length)return null;const T=regs.length*lim;
+  const demand={};regs.forEach(R=>demand[R]=0);
+  students.forEach(s=>pref(s).forEach((R,j)=>demand[R]+=j===0?1:.35));
+  const cnt={};regs.forEach(R=>cnt[R]=0);
+  for(let t=0;t<T;t++){const c=regs.filter(R=>cnt[R]<lim);if(!c.length)break;
+    c.sort((a,b)=>demand[b]/(cnt[b]+1)-demand[a]/(cnt[a]+1));cnt[c[0]]++}
+  const used=regs.filter(R=>cnt[R]>0),tot=used.reduce((a,R)=>a+cnt[R],0);
+  const per=n/tot,cap={},minN={};used.forEach(R=>{cap[R]=Math.ceil(cnt[R]*per);minN[R]=Math.max(2,Math.floor(cnt[R]*per)-1)});
+  const g={};used.forEach(R=>g[R]=[]);const left=[];
+  // pass 1: first choice, pass 2: later choices, pass 3: wherever there is room
+  students.slice().sort(()=>Math.random()-.5).forEach(s=>{const R=pref(s)[0];if(g[R]&&g[R].length<cap[R])g[R].push(s);else left.push(s)});
+  const left2=[];left.forEach(s=>{const R=pref(s).slice(1).find(R=>g[R]&&g[R].length<cap[R]);if(R)g[R].push(s);else left2.push(s)});
+  left2.forEach(s=>{const R=used.slice().sort((a,b)=>(g[a].length-cap[a])-(g[b].length-cap[b]))[0];g[R].push(s)});
+  // top up thin regions from regions with spare students, preferring students who listed the thin region
+  for(let guard=0;guard<n;guard++){const thin=used.find(R=>g[R].length<minN[R]);if(!thin)break;
+    const donors=used.filter(R=>R!==thin&&g[R].length>minN[R]);if(!donors.length)break;
+    let pick=null,from=null;
+    for(const D of donors){const m=g[D].find(s=>pref(s).includes(thin)&&pref(s)[0]!==D);if(m){pick=m;from=D;break}}
+    if(!pick){from=donors.sort((a,b)=>(g[b].length-minN[b])-(g[a].length-minN[a]))[0];pick=g[from].find(s=>pref(s)[0]!==from)||g[from][0]}
+    g[from].splice(g[from].indexOf(pick),1);g[thin].push(pick)}
+  return used.map(R=>({R,t:cnt[R],list:g[R]})).filter(x=>x.list.length)}
+
 function makeTeams(){
   if(!rows.length)return;buildStudents();const k=Math.max(2,+$("#teamSize").value||4);
-  const groups={};students.forEach(s=>{const g="All";(groups[g]=groups[g]||[]).push(s)});
+  const lim=parseInt($("#maxPerRegion").value)||0;
   $("#runStatus").textContent="Forming teams...";
   setTimeout(()=>{teams=[];let n=0;
-    Object.keys(groups).sort().forEach(g=>{const t=formGroup(groups[g],k,6,Math.min(30000,groups[g].length*700));t.forEach(m=>teams.push({name:"Team "+(++n),section:g,members:m}))});
-    $("#runStatus").textContent=`Formed ${teams.length} teams.`;renderTeams()},20)}
+    const plan=regionPlan(k,lim);
+    if(plan){plan.sort((a,b)=>a.R.localeCompare(b.R)).forEach(({R,t,list})=>{
+        const tt=Math.min(t,Math.max(1,Math.floor(list.length/2)));
+        formGroup(list,k,6,Math.min(30000,list.length*700),tt).forEach(m=>teams.push({name:"Team "+(++n)+" - "+R,section:R,members:m}))});
+      const rc=colOf("region");const moved=teams.reduce((a,t)=>a+t.members.filter(m=>m.r[rc[0]]!==t.section).length,0);
+      $("#runStatus").textContent=`Formed ${teams.length} teams, ${lim} per region. ${students.length-moved} of ${students.length} students got their first-choice region.`}
+    else{formGroup(students,k,6,Math.min(30000,students.length*700)).forEach(m=>teams.push({name:"Team "+(++n),section:"All",members:m}));
+      $("#runStatus").textContent=`Formed ${teams.length} teams.`}
+    renderTeams()},20)}
 
 function renderTeams(){
   const box=$("#teams"),sum=$("#summary");
