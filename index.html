@@ -199,7 +199,7 @@ function sample(){
   return lines}
 
 function guessMode(h,vals){const k=h.toLowerCase();
-  if(/code|pseudonym|anon/.test(k))return"code"; 
+  if(/code|pseudonym|anon|random/.test(k))return"code"; 
   const nonblank=vals.filter(v=>v.trim()!=="");
   if(nonblank.length&&nonblank.every(v=>YES.test(v.trim())||/^(n|no|false|0)$/i.test(v.trim()))&&/(mon|tue|wed|thu|fri|sat|sun|am|pm|\d)/i.test(k))return"slot";
   if(/avail|schedule|times?/.test(k))return"schedule";
@@ -208,10 +208,10 @@ function guessMode(h,vals){const k=h.toLowerCase();
   if(vals.length&&vals.every(v=>v===""||/^[1-5]$/.test(v.trim())))return"balance"; if(/role|prefer/.test(k))return"mix"; return"ignore"}
 function defaultWeight(m){return {schedule:5,slot:5,region:5,balance:3,mix:2,similar:2,isolate:5}[m]||0}
 
-const PII_HEAD=/(name|user|login|e-?mail|netid|sis|student ?id|university ?id|\bid\b|uid|phone)/i;
+const PII_HEAD=/(name|user|login|e-?mail|netid|\bsis\b|student ?id|university ?id|\bid\b|\buid\b|phone)/i;
 const PII_VAL=[/@[a-z0-9-]+\./i,/^\d{9,10}$/];
 function piiCheck(data){const hs=data[0].map(h=>h.trim());const bad=[];
-  hs.forEach((h,i)=>{if(/code|pseudonym|anon/i.test(h))return;
+  hs.forEach((h,i)=>{if(/code|pseudonym|anon|random/i.test(h))return;
     if(PII_HEAD.test(h)){bad.push(h);return}
     if(data.slice(1).some(r=>PII_VAL.some(re=>re.test(String(r[i]||"").trim()))))bad.push(h||"(column "+(i+1)+")")});
   return bad}
