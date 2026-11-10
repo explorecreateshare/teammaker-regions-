@@ -266,7 +266,7 @@ function renderSched(){const pan=$("#schedPanel");pan.hidden=!hasSched();if(pan.
   $("#slotList").querySelectorAll("[data-slot]").forEach(cb=>cb.onchange=e=>{const k=e.target.dataset.slot;if(e.target.checked)sched.off.delete(k);else sched.off.add(k);renderSched();if(teams.length){buildSlots();renderTeams()}})}
 function buildSlots(){students.forEach(s=>{s.slots=new Set(rawSlots(s.r).map(([k])=>k).filter(k=>!sched.off.has(k)))})}
 function buildStudents(){
-  const codeC=colOf("code")[0],secC=colOf("section")[0];
+  const codeC=colOf("code")[0]??0,secC=colOf("section")[0];
   students=rows.map((r,idx)=>({id:idx,name:codeC!=null&&r[codeC]?r[codeC]:"Row "+(idx+1),section:secC!=null?r[secC]||"(none)":"All",r}));
   buildSlots();
   // stats for balance columns
